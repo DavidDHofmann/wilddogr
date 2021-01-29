@@ -531,35 +531,3 @@ dog_download_all <- function(
   return(x)
 
 }
-
-################################################################################
-#### TESTING
-################################################################################
-# Clear R's brain
-# rm(list = ls())
-#
-# # Set wd
-# setwd("/home/david/Schreibtisch")
-#
-# load("/home/david/ownCloud/University/15. PhD/General/R-Packages/wilddogr/R/sysdata.rda")
-# ext$DispersalPeriods
-# ext$CollarPeriods
-#
-# # Load required packages
-# library(rdrop2)
-# library(tidyverse)
-# library(pbapply)
-#
-# # Identify some files
-# files <- dog_files(rvc = F)
-#
-# # Let's sample some of them
-# files <- files[sample(nrow(files), 3), ]
-#
-# # Download them
-# dog_download(files, clean = T, overwrite = T, printpath = F)
-#
-# # Download all dog files
-# dog_download_all(rvc = T, overwrite = T, clean = T)
-#
-# dog_files(rvc = T, duplicates = T)
