@@ -29,7 +29,8 @@ filepaths to the downloaded files so that you can easily load it into your
 r-session.
 
 In addition, there's a helper function `dog_download_all()` that serves to
-simply download all GPS data that's available on Dropbox.
+simply download all GPS data that's available on Dropbox. For further details
+and options, check the help files for the different functions.
 
 ## Example
 Here is a little example of the above outlined workflow
