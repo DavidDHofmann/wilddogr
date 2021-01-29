@@ -9,8 +9,12 @@ then install `wilddogr` using:
 
 ```
 library(devtools)
-install_github("DavidDHofmann/wilddogr")
+install_github("DavidDHofmann/wilddogr", auth_token = "yourtoken")
 ```
+
+Note that this repository is private so you MUST provide a token to be able to
+install. You can generate your personal token here:
+"github.com/settings/tokens". Make sure to check the "repo" scope.
 
 ## Workflow
 The `wilddogr` package follows a two-step process using the functions,
