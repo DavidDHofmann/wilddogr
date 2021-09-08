@@ -1,3 +1,13 @@
+# ################################################################################
+# #### TESTING
+# ################################################################################
+# library(rdrop2)
+# library(pbapply)
+# library(lubridate)
+# library(dplyr)
+# library(tidyr)
+# library(stringr)
+
 ################################################################################
 #### Load Dependencies
 ################################################################################
@@ -23,6 +33,7 @@ NULL
 #' @examples
 #' # Check all available files on Dropbbox
 #' dog_files(rvc = T)
+# dog_files(rvc = T)
 dog_files <- function(rvc = F){
 
   # Check if the KML-Files folder is in the top directory
@@ -54,9 +65,8 @@ dog_files <- function(rvc = F){
     files_1$filename <- files_1$name
     files_1$filetype <- ".txt"
 
-    # Keep only columns
-    files_1 <- select(
-        files_1
+    # Remove unnecessary columns
+    files_1 <- dplyr::select(files_1
       , c(DogName, Collar, Timestamp, fullname, filepath, filename, filetype)
     )
 
@@ -66,15 +76,15 @@ dog_files <- function(rvc = F){
   files <- files[grepl(files$name, pattern = ".csv$"), ]
   files <- files[grepl(files$name, pattern = "GPS"), ]
 
-  # Ignore all "perforamce" files and files from the "dispersers" folder
+  # Ignore all "performance" files and files from the "dispersers" folder
   files <- files[!(grepl(files$path_lower, pattern = "performance")), ]
   files <- files[!(grepl(files$path_lower, pattern = "dispersers")), ]
 
   # Prepare a dataframe with relevant information on each file
   info <- data.frame(
-      fullname = files$path_display
-    , filepath = dirname(files$path_display)
-    , filename = files$name
+      fullname         = files$path_display
+    , filepath         = dirname(files$path_display)
+    , filename         = files$name
     , stringsAsFactors = F
   )
 
@@ -82,7 +92,7 @@ dog_files <- function(rvc = F){
   # cases the information is given in the filename, in other cases in the
   # folders. Let's split the files accordingly.
   files_2 <- info[grepl(info$filepath, pattern = "inactive collars"), ]
-  files_3 <- info[!(grepl(info$filepath, pattern = "inactive collars")), ]
+  # files_3 <- info[!(grepl(info$filepath, pattern = "inactive collars")), ]
 
   # Identify dog name, collar, and date for second set of files
   files_2 <- files_2 %>%
@@ -93,29 +103,30 @@ dog_files <- function(rvc = F){
       , sep = "_"
       , into = c(NA, "DogName", "Collar")
     ) %>%
-    select(-Collar) %>%
+    dplyr::select(-Collar) %>%
     separate(
         col = filename
       , sep = "_"
       , into = c(NA, "Collar", "Timestamp")
     ) %>%
-    select(c(Collar, DogName, Timestamp)) %>%
+    dplyr::select(c(Collar, DogName, Timestamp)) %>%
     cbind(files_2, .)
 
-  # Identify dog name, collar, and date for third set of files
-  files_3 <- files_3 %>%
-    mutate(filename = gsub(x = filename, pattern = "__", replacement = "_")) %>%
-    mutate(filepath = gsub(x = filepath, pattern = "__", replacement = "_")) %>%
-    separate(
-        col = fullname
-      , sep = "_"
-      , c(NA, "DogName", NA, "Collar", "Timestamp")
-    ) %>%
-    select(c(Collar, DogName, Timestamp)) %>%
-    cbind(files_3, .)
+  # # Identify dog name, collar, and date for third set of files
+  # files_3 <- files_3 %>%
+  #   mutate(filename = gsub(x = filename, pattern = "__", replacement = "_")) %>%
+  #   mutate(filepath = gsub(x = filepath, pattern = "__", replacement = "_")) %>%
+  #   separate(
+  #       col = fullname
+  #     , sep = "_"
+  #     , c(NA, "DogName", NA, "Collar", "Timestamp")
+  #   ) %>%
+  #   dplyr::select(c(Collar, DogName, Timestamp)) %>%
+  #   cbind(files_3, .)
 
   # Put all back together and do some cleaning
-  files_2 <- rbind(files_2, files_3) %>%
+  # files_2 <- rbind(files_2, files_3) %>%
+  files_2 <- files_2 %>%
     separate(
         col = Timestamp
       , sep = c(4, 6, 8, 10, 12, 14)
@@ -127,7 +138,7 @@ dog_files <- function(rvc = F){
     mutate(Timestamp = as.POSIXct(Timestamp)) %>%
     mutate(Collar = str_extract(Collar, pattern = "\\d.*")) %>%
     mutate(filetype = ".csv") %>%
-    select(DogName, Collar, Timestamp, fullname, filepath, filename, filetype)
+    dplyr::select(DogName, Collar, Timestamp, fullname, filepath, filename, filetype)
 
   # Add rvc data
   if (rvc){
