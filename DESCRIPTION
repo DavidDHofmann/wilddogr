@@ -14,8 +14,10 @@ LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.1
 Depends:
+  R (>= 3.5.0),
   tidyverse
 Imports:
   rdrop2,
   lubridate,
+  readxl,
   pbapply

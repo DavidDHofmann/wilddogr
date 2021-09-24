@@ -1,19 +1,22 @@
-# ################################################################################
-# #### TESTING
-# ################################################################################
-# library(rdrop2)
-# library(pbapply)
-# library(lubridate)
-# library(dplyr)
-# library(tidyr)
-# library(stringr)
+################################################################################
+#### TESTING
+################################################################################
+library(rdrop2)
+library(pbapply)
+library(lubridate)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(readxl)
+library(tidyverse)
 
 ################################################################################
 #### Load Dependencies
 ################################################################################
 #' @importFrom pbapply pbsapply
 #' @importFrom rdrop2 drop_exists drop_dir drop_download
-#' @importFrom lubridate year
+#' @importFrom lubridate year hours minutes ymd_hms dmy_hm
+#' @importFrom readxl read_excel
 NULL
 
 ################################################################################
@@ -152,7 +155,7 @@ dog_files <- function(rvc = F){
     as_tibble() %>%
     arrange(DogName, Timestamp)
 
-  # Add file "counter"
+  # Add "file-counter"
   info <- info %>%
       group_by(DogName, Collar, Timestamp) %>%
       mutate(Counter = row_number())
@@ -212,7 +215,7 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
 
   # Make sure a dataframe is provided
   if (missing(x)){
-    stop("Please provide a dataframe")
+    stop("Please provide a dataframe containing the files you want to download")
   }
 
   # If not allowed to overwrite, check which files already exist and remove them
@@ -298,7 +301,8 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
     dat <- subset(dat, !dups_complete)
 
     # Use dispersal dates to determine dispersal phases
-    cut <- ext$DispersalPeriods
+    # cut <- ext$DispersalPeriods
+    cut <- .dispersalDates()
 
     # Now loop through all dogs and use the table to specify whether a fix was
     # taken during dispersal or not
@@ -308,13 +312,14 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
       cutoff <- subset(cut, DogName == names[i])
       index <- which(dat$DogName == names[i])
       for (h in 1:nrow(cutoff)){
-        dat$State[index][dat$Timestamp[index] >= cutoff$StartDate[h] &
-        dat$Timestamp[index] <= cutoff$EndDate[h]] <- "Disperser"
+        dat$State[index][dat$Timestamp[index] >= cutoff$FirstDate[h] &
+        dat$Timestamp[index] <= cutoff$LastDate[h]] <- "Disperser"
       }
     }
 
     # Use collar dates to remove data before/after collaring
-    cut <- ext$CollarPeriods
+    # cut <- ext$CollarPeriods
+    cut <- .collarDates()
 
     # Create a column that indicates if the respective fix lies within the first
     # and last date. Note, for some individuals we're missing these dates, so
@@ -540,5 +545,59 @@ dog_download_all <- function(
 
   # Return the filepath
   return(x)
+
+}
+
+# Helper to download dispersal dates
+.collarDates <- function() {
+
+  # Download updated collar handling dates
+  drop_download(path = "KML-Files/Collar Settings.xlsx", local_path = tempdir(), overwrite = T)
+
+  # Do some cleaning
+  collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
+    read_excel(skip = 1) %>%
+    subset(!is.na(`Collar Nr.`) & !is.na(`Dog Name`)) %>%
+    select(
+        CollarID  = `Collar Nr.`
+      , DogName   = `Dog Name`
+      , DogCode   = `Dog Code`
+      , Sex       = `Sex`
+      , FirstDate = `Collaring.Date.Text`
+      , LastDate1  = `Stop.Recording.Date.Text`
+      , LastDate2  = `Last fix date`
+    ) %>%
+    mutate(
+        FirstDate = ymd_hms(FirstDate) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+      , LastDate1 = ymd_hms(LastDate1) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+      , LastDate2 = dmy_hm(LastDate2) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+    ) %>%
+    mutate(LastDate = pmax(LastDate1, LastDate2, na.rm = T)) %>%
+    select(-c(LastDate1, LastDate2)) %>%
+    arrange(CollarID, DogName)
+
+  # Return the final dataframe
+  return(collar_periods)
+
+}
+
+# Helper to download collar handling dates
+.dispersalDates <- function() {
+
+  # Download updated cutoff dates
+  drop_download(path = "KML-Files/DISPERSERS/overview dispersal dates.xlsx", local_path = tempdir(), overwrite = T)
+
+  # Do some cleaning
+  dispersal_periods <- file.path(tempdir(), "overview dispersal dates.xlsx") %>%
+    read_excel() %>%
+    subset(!is.na(CollarID) & !is.na(DogName)) %>%
+    select(CollarID, DogName, FirstDate = StartDate_UTC, LastDate = EndDate_UTC, DispersalNo) %>%
+    mutate(
+        FirstDate = ymd_hms(FirstDate)
+      , LastDate = ymd_hms(LastDate)
+    )
+
+  # Return the final dataframe
+  return(dispersal_periods)
 
 }
