@@ -1,14 +1,14 @@
-################################################################################
-#### TESTING
-################################################################################
-library(rdrop2)
-library(pbapply)
-library(lubridate)
-library(dplyr)
-library(tidyr)
-library(stringr)
-library(readxl)
-library(tidyverse)
+# ################################################################################
+# #### TESTING
+# ################################################################################
+# library(rdrop2)
+# library(pbapply)
+# library(lubridate)
+# library(dplyr)
+# library(tidyr)
+# library(stringr)
+# library(readxl)
+# library(tidyverse)
 
 ################################################################################
 #### Load Dependencies
@@ -558,7 +558,7 @@ dog_download_all <- function(
   collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
     read_excel(skip = 1) %>%
     subset(!is.na(`Collar Nr.`) & !is.na(`Dog Name`)) %>%
-    select(
+    dplyr::select(
         CollarID  = `Collar Nr.`
       , DogName   = `Dog Name`
       , DogCode   = `Dog Code`
@@ -573,7 +573,7 @@ dog_download_all <- function(
       , LastDate2 = dmy_hm(LastDate2) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
     ) %>%
     mutate(LastDate = pmax(LastDate1, LastDate2, na.rm = T)) %>%
-    select(-c(LastDate1, LastDate2)) %>%
+    dplyr::select(-c(LastDate1, LastDate2)) %>%
     arrange(CollarID, DogName)
 
   # Return the final dataframe
@@ -591,7 +591,7 @@ dog_download_all <- function(
   dispersal_periods <- file.path(tempdir(), "overview dispersal dates.xlsx") %>%
     read_excel() %>%
     subset(!is.na(CollarID) & !is.na(DogName)) %>%
-    select(CollarID, DogName, FirstDate = StartDate_UTC, LastDate = EndDate_UTC, DispersalNo) %>%
+    dplyr::select(CollarID, DogName, FirstDate = StartDate_UTC, LastDate = EndDate_UTC, DispersalNo) %>%
     mutate(
         FirstDate = ymd_hms(FirstDate)
       , LastDate = ymd_hms(LastDate)
