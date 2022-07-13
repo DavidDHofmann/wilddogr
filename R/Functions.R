@@ -15,7 +15,7 @@
 ################################################################################
 #' @importFrom pbapply pbsapply
 #' @importFrom rdrop2 drop_exists drop_dir drop_download
-#' @importFrom lubridate year hours minutes ymd_hms dmy_hm
+#' @importFrom lubridate year hours minutes ymd_hms dmy_hm with_tz
 #' @importFrom readxl read_excel
 NULL
 
