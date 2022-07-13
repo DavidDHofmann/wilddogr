@@ -3,6 +3,7 @@
 export(dog_download)
 export(dog_download_all)
 export(dog_files)
+export(resampleFixes)
 importFrom(lubridate,dmy_hm)
 importFrom(lubridate,hours)
 importFrom(lubridate,minutes)

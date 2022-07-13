@@ -1,4 +1,5 @@
-# wilddogr
+# wilddogr <img src="man/figures/wilddogr.png" align="right" width="150" height="150"/>
+
 `wilddogr` is an R-package that allows you to automatically download and clean
 GPS data of wild dogs stored on Dropbox. For this, you'll need to have access to
 the "KML-Dispersers" folder.
@@ -7,14 +8,9 @@ the "KML-Dispersers" folder.
 To install `wilddogr` you need to have the package `devtools` installed. You can
 then install `wilddogr` using:
 
+```r
+devtools::install_github("DavidDHofmann/wilddogr")
 ```
-library(devtools)
-install_github("DavidDHofmann/wilddogr", auth_token = "yourtoken")
-```
-
-Note that this repository is private so you MUST provide a token to be able to
-install. You can generate your personal token
-[here](github.com/settings/tokens). Make sure to check the "repo" scope.
 
 ## Workflow
 The `wilddogr` package follows a two-step process using the functions,
@@ -36,10 +32,14 @@ In addition, there's a helper function `dog_download_all()` that serves to
 simply download all GPS data that's available on Dropbox. For further details
 and options, check the help files for the different functions.
 
+Finally, the function `resampleFixes()` can be used to coarsen the regularize
+the temporal resolution of the GPS data to a specified value (e.g. 4-hours or
+24-hours).
+
 ## Example
 Here is a little example of the above outlined workflow
 
-```
+```r
 # Load required packages
 library(wilddogr)
 
@@ -57,7 +57,8 @@ downloaded <- dog_download(
     x         = todownload
   , clean     = T
   , overwrite = T
-  , outdir    = getwd()
+  , outdir    = tempdir()
+  , printpath = T
 )
 
 # Let's take a look at the data

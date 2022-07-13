@@ -14,13 +14,21 @@ all files, consider using \code{dog_download_all()}.}
 \item{overwrite}{logical indicating if you wish to overwrite already existing
 files}
 
-\item{clean}{logical indicating if you wish to pre-process the data}
+\item{clean}{logical indicating if you wish to pre-process the data. If set
+to \code{FALSE}, raw data will be stored. If set to \code{TRUE}, the files
+will be checked for inconsistencies and they will be corrected (e.g. if there
+are differing separators). In addition, collar handling periods will be
+removed and dispersal/residency dates will be assigned to each fix. Insteady
+of the raw data, you will get a single cleaned dataset. I highly recommend
+that you set this option to \code{TRUE}.}
 
 \item{outdir}{character directory where you'd like to store the downloaded
-files. By default this is set to your working directory (i.e. \code{getwd()})}
+files. By default this is set to your working directory (i.e. to the
+directory that is shown by \code{getwd()})}
 
 \item{printpath}{should the path to the final file(s) be returned after the
-operations are finished?}
+operations are finished? This is handy if you want to fruther handle the
+files after the download.}
 }
 \value{
 character filepath to the downloaded files

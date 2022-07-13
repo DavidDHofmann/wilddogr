@@ -1,6 +1,6 @@
-# ################################################################################
-# #### TESTING
-# ################################################################################
+# # ################################################################################
+# # #### TESTING
+# # ################################################################################
 # library(rdrop2)
 # library(pbapply)
 # library(lubridate)
@@ -37,10 +37,10 @@ NULL
 #' # Check all available files on Dropbbox
 #' dog_files(rvc = T)
 # dog_files(rvc = T)
-dog_files <- function(rvc = F){
+dog_files <- function(rvc = F) {
 
   # Check if the KML-Files folder is in the top directory
-  if (drop_exists("KML-Files")){
+  if (drop_exists("KML-Files")) {
       path <- "KML-Files"
     } else {
       path <- drop_dir(recursive = T)
@@ -51,7 +51,7 @@ dog_files <- function(rvc = F){
   files <- drop_dir(path, recursive = T)
 
   # If desired, extract rvc data
-  if (rvc){
+  if (rvc) {
 
     # Find gps data
     files_1 <- files[grepl(files$path_display, pattern = "GPS_data_RVC"), ]
@@ -102,15 +102,17 @@ dog_files <- function(rvc = F){
     mutate(filename = gsub(x = filename, pattern = "__", replacement = "_")) %>%
     mutate(filepath = gsub(x = filepath, pattern = "__", replacement = "_")) %>%
     separate(
-        col = filepath
-      , sep = "_"
-      , into = c(NA, "DogName", "Collar")
+        col   = filepath
+      , sep   = "_"
+      , into  = c(NA, "DogName", "Collar")
+      , extra = "drop"
     ) %>%
     dplyr::select(-Collar) %>%
     separate(
-        col = filename
-      , sep = "_"
-      , into = c(NA, "Collar", "Timestamp")
+        col   = filename
+      , sep   = "_"
+      , into  = c(NA, "Collar", "Timestamp")
+      , extra = "drop"
     ) %>%
     dplyr::select(c(Collar, DogName, Timestamp)) %>%
     cbind(files_2, .)
@@ -144,7 +146,7 @@ dog_files <- function(rvc = F){
     dplyr::select(DogName, Collar, Timestamp, fullname, filepath, filename, filetype)
 
   # Add rvc data
-  if (rvc){
+  if (rvc) {
       info <- rbind(files_1, files_2)
     } else {
       info <- files_2
@@ -194,11 +196,19 @@ dog_files <- function(rvc = F){
 #' all files, consider using \code{dog_download_all()}.
 #' @param overwrite logical indicating if you wish to overwrite already existing
 #' files
-#' @param clean logical indicating if you wish to pre-process the data
+#' @param clean logical indicating if you wish to pre-process the data. If set
+#' to \code{FALSE}, raw data will be stored. If set to \code{TRUE}, the files
+#' will be checked for inconsistencies and they will be corrected (e.g. if there
+#' are differing separators). In addition, collar handling periods will be
+#' removed and dispersal/residency dates will be assigned to each fix. Insteady
+#' of the raw data, you will get a single cleaned dataset. I highly recommend
+#' that you set this option to \code{TRUE}.
 #' @param outdir character directory where you'd like to store the downloaded
-#' files. By default this is set to your working directory (i.e. \code{getwd()})
+#' files. By default this is set to your working directory (i.e. to the
+#' directory that is shown by \code{getwd()})
 #' @param printpath should the path to the final file(s) be returned after the
-#' operations are finished?
+#' operations are finished? This is handy if you want to fruther handle the
+#' files after the download.
 #' @return character filepath to the downloaded files
 #' @examples
 #' \dontrun{
@@ -211,42 +221,47 @@ dog_files <- function(rvc = F){
 #' # Download them
 #' dog_download(files)
 #'}
-dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpath = T){
+dog_download <- function(x
+    , overwrite = F
+    , clean     = F
+    , outdir    = getwd()
+    , printpath = T
+  ) {
 
   # Make sure a dataframe is provided
-  if (missing(x)){
+  if (missing(x)) {
     stop("Please provide a dataframe containing the files you want to download")
   }
 
   # If not allowed to overwrite, check which files already exist and remove them
   # from the list
-  if (!overwrite & clean){
-    if (file.exists(file.path(outdir, "Cleaned_GPSData.csv"))){
+  if (!overwrite & clean) {
+    if (file.exists(file.path(outdir, "Cleaned_GPSData.csv"))) {
       return(warning("Cleaned file already exists."))
     }
   }
-  if (!overwrite){
+  if (!overwrite) {
     index <- file.exists(file.path(outdir, x$newfilename))
     x <- x[!index, ]
   }
 
   # In case the list has no rows anymore. Stop
-  if (nrow(x) == 0 | is.null(x)){
+  if (nrow(x) == 0 | is.null(x)) {
     return(warning("All files already exist. Nothing to download."))
   }
 
   # Raw files will go to this temporary folder
-  if (clean){
+  if (clean) {
     tmp <- tempdir()
   }
 
   # Download files
   cat("Downloading files from Dropbox. This may take a while...\n")
-  tmpfles <- pbsapply(1:nrow(x), function(i){
+  tmpfles <- pbsapply(1:nrow(x), function(i) {
 
     # In case no cleaning is desired, simply download the files to the output
     # directory
-    if (!clean){
+    if (!clean) {
 
         # Download file to output directory
         tmpfles <- file.path(outdir, x$newfilename[i])
@@ -286,13 +301,13 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
   cat("All files downloaded...\n")
 
   # Further cleaning (if desired)
-  if (clean){
+  if (clean) {
 
     # Print update
     cat("Files being cleaned and merged...\n")
 
     # Combine all datasets into a single one
-    dat <- lapply(tmpfles, function(x){
+    dat <- lapply(tmpfles, function(x) {
       read_csv(x, col_types = cols())
     }) %>% do.call(rbind, .)
 
@@ -308,10 +323,10 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
     # taken during dispersal or not
     dat$State <- "Resident"
     names <- unique(cut$DogName)
-    for (i in seq_along(names)){
+    for (i in seq_along(names)) {
       cutoff <- subset(cut, DogName == names[i])
       index <- which(dat$DogName == names[i])
-      for (h in 1:nrow(cutoff)){
+      for (h in 1:nrow(cutoff)) {
         dat$State[index][dat$Timestamp[index] >= cutoff$FirstDate[h] &
         dat$Timestamp[index] <= cutoff$LastDate[h]] <- "Disperser"
       }
@@ -356,7 +371,7 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
   }
 
   # Return the final filepath(s) if desired
-  if (printpath){
+  if (printpath) {
     return(tmpfles)
   }
 }
@@ -381,12 +396,12 @@ dog_download <- function(x, overwrite = F, clean = F, outdir = getwd(), printpat
 #' dog_download_all(rvc = T)
 #'}
 dog_download_all <- function(
-    rvc       = T
-  , overwrite = F
-  , clean     = T
-  , outdir    = getwd()
-  , printpath = T
-  ){
+      rvc       = T
+    , overwrite = F
+    , clean     = T
+    , outdir    = getwd()
+    , printpath = T
+  ) {
 
     # Identify all files
     files <- dog_files(rvc = rvc)
@@ -401,11 +416,35 @@ dog_download_all <- function(
 
 }
 
+#' Resample GPS fixes
+#'
+#' Function to resample fixes to a coarser resolution
+#' @export
+#' @param data Data should be resampled
+#' @param hours Aspired time between fixes in hours
+#' @param start Hour at which the resampled tracks should start
+#' @param tol tolerance (in hours) with regards to the hour at which fixes
+#' should be sampled
+#' @return \code{data.frame}
+resampleFixes <- function(data, hours, start, tol = 0.5) {
+
+  # In case there are multiple individuals, run through them
+  dat <- nest(data, Data = -c(DogName, CollarID))
+  dat$Data <- lapply(dat$Data, function(x) {
+    resampled <- .resampleFixes(x, hours, start, tol)
+    return(resampled)
+  })
+  resampled <- unnest(dat, Data)
+
+  # Return the resampled fixes
+  return(resampled)
+}
+
 ################################################################################
 #### Level 2 Functions
 ################################################################################
 # Helper to clean files
-.dogClean <- function(x){
+.dogClean <- function(x) {
 
   # Extract information from filenames
   info <- basename(x)
@@ -421,15 +460,15 @@ dog_download_all <- function(
   info$x <- NULL
 
   # Loop through the files and clean them
-  for (i in 1:nrow(info)){
-    if (info$filetype[i] == "txt"){
+  for (i in 1:nrow(info)) {
+    if (info$filetype[i] == "txt") {
       cleaned <- .cleanTXT(
           x         = info$filename[i]
         , DogName   = info$DogName[i]
         , Collar    = info$Collar[i]
         , Timestamp = info$Timestamp[i]
       )
-    } else if (info$filetype[i] == "csv"){
+    } else if (info$filetype[i] == "csv") {
       cleaned <- .cleanCSV(
           x         = info$filename[i]
         , DogName   = info$DogName[i]
@@ -444,7 +483,7 @@ dog_download_all <- function(
 }
 
 # Helper to clean .csv files
-.cleanCSV <- function(x, DogName, Collar, Timestamp){
+.cleanCSV <- function(x, DogName, Collar, Timestamp) {
 
   # Identify separator
   sep <- readLines(x, n = 1)
@@ -452,13 +491,15 @@ dog_download_all <- function(
 
   # Load the file as plain text and remove funny characters
   dat <- read_file(x, local = locale(encoding = "latin1"))
-  if (sep == ","){
+  if (sep == ",") {
       dat <- gsub(dat, pattern = ",", replacement = ";")
     } else {
       dat <- gsub(dat, pattern = ",", replacement = ".")
   }
   dat <- gsub(dat, pattern = "°", replacement = "")
   dat <- gsub(dat, pattern = "/", replacement = ".")
+  dat <- gsub(dat, pattern = "\\[[^][]*]", replacement = "")
+  dat <- gsub(dat, pattern = " ", replacement = "")
   write(dat, x)
 
   # Load file as data frame and do some more cleaning
@@ -472,9 +513,9 @@ dog_download_all <- function(
       paste(UTC_Date, UTC_Time), tz = "UTC", format = "%d.%m.%Y %H:%M:%S")
     ) %>%
 
-    # Remove special characters like [°]
-    setNames(gsub(names(.), pattern = " \\[*", replacement = "")) %>%
-    setNames(gsub(names(.), pattern = "\\]", replacement = "")) %>%
+    # # Remove special characters like [°]
+    # setNames(gsub(names(.), pattern = " \\[*", replacement = "")) %>%
+    # setNames(gsub(names(.), pattern = "\\]", replacement = "")) %>%
 
     # Keep only desired columns
     dplyr::select(.
@@ -495,7 +536,7 @@ dog_download_all <- function(
 }
 
 # Helper to clean .txt files
-.cleanTXT <- function(x, DogName, Collar, Timestamp){
+.cleanTXT <- function(x, DogName, Collar, Timestamp) {
 
   # Load the file
   dat <- read_delim(x, delim = "\t", skip = 2) %>%
@@ -552,9 +593,18 @@ dog_download_all <- function(
 .collarDates <- function() {
 
   # Download updated collar handling dates
-  drop_download(path = "KML-Files/Collar Settings.xlsx", local_path = tempdir(), overwrite = T)
+  drop_download(
+      path       = "KML-Files/Collar Settings.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
 
   # Do some cleaning
+  as.POSIXct(43055.375, origin = "1899-12-30")
+  test <- as.POSIXct(as.Date(43055.375, origin = "1899-12-30", tz = "UTC"))
+  with_tz(test, "UTC")
+
+  # Download file and keep relevant columns
   collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
     read_excel(skip = 1) %>%
     subset(!is.na(`Collar Nr.`) & !is.na(`Dog Name`)) %>%
@@ -564,13 +614,30 @@ dog_download_all <- function(
       , DogCode   = `Dog Code`
       , Sex       = `Sex`
       , FirstDate = `Collaring.Date.Text`
-      , LastDate1  = `Stop.Recording.Date.Text`
-      , LastDate2  = `Last fix date`
-    ) %>%
+      , LastDate1 = `Stop.Recording.Date.Text`
+      , LastDate2 = `Last fix date`
+    )
+
+  # Some dates are not parsed correctly, let's do so now
+  collar_periods$LastDate2 <- lapply(collar_periods$LastDate2, function(x) {
+    if (is.na(x)) {
+        timestamp <- NA
+      } else if (is.na(suppressWarnings(as.numeric(x)))) {
+        timestamp <- lubridate::dmy_hm(x, tz = "UTC")
+      } else {
+        timestamp <- as.Date(as.numeric(x), origin = "1899-12-30", tz = "UTC")
+        timestamp <- as.POSIXct(timestamp)
+        timestamp <- with_tz(timestamp, "UTC")
+    }
+    return(as.POSIXct(timestamp, tz = "UTC"))
+  }) %>% do.call(c, .)
+
+  # Convert local times to UTC
+  collar_periods <- collar_periods %>%
     mutate(
         FirstDate = ymd_hms(FirstDate) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
       , LastDate1 = ymd_hms(LastDate1) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
-      , LastDate2 = dmy_hm(LastDate2) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+      , LastDate2 = LastDate2 - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
     ) %>%
     mutate(LastDate = pmax(LastDate1, LastDate2, na.rm = T)) %>%
     dplyr::select(-c(LastDate1, LastDate2)) %>%
@@ -578,26 +645,84 @@ dog_download_all <- function(
 
   # Return the final dataframe
   return(collar_periods)
-
 }
 
 # Helper to download collar handling dates
 .dispersalDates <- function() {
 
   # Download updated cutoff dates
-  drop_download(path = "KML-Files/DISPERSERS/overview dispersal dates.xlsx", local_path = tempdir(), overwrite = T)
+  drop_download(
+      path       = "KML-Files/DISPERSERS/overview dispersal dates.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
 
   # Do some cleaning
   dispersal_periods <- file.path(tempdir(), "overview dispersal dates.xlsx") %>%
     read_excel() %>%
     subset(!is.na(CollarID) & !is.na(DogName)) %>%
-    dplyr::select(CollarID, DogName, FirstDate = StartDate_UTC, LastDate = EndDate_UTC, DispersalNo) %>%
+    dplyr::select(
+        CollarID
+      , DogName
+      , FirstDate = StartDate_UTC
+      , LastDate  = EndDate_UTC
+      , DispersalNo
+    ) %>%
     mutate(
         FirstDate = ymd_hms(FirstDate)
-      , LastDate = ymd_hms(LastDate)
+      , LastDate  = ymd_hms(LastDate)
     )
 
   # Return the final dataframe
   return(dispersal_periods)
 
+}
+
+# Helper function to resample fixes for a single individual
+.resampleFixes <- function(data, hours, start, tol = 0.5) {
+
+  # Identify the first date at which a fix was taken
+  first <- range(data$Timestamp)[1] %>%
+
+    # Update the time to the start time specified in the function
+    update(., hour = start, min = 0, sec = 0)
+
+  # Identify the last date at which a fix was taken
+  last <- range(data$Timestamp)[2] %>%
+
+    # Update the time to the end time specified in the function
+    update(., hour = 24, min = 0, sec = 0)
+
+  # Prepare a range of dates for which we would expect to find data according
+  # to the specified sampling scheme
+  dates <- seq(first, last, by = paste0(hours, " hours")) %>%
+
+    # Coerce the data to a dataframe
+    as.data.frame() %>%
+
+    # Give the column a nicer name
+    set_names("Timestamp")
+
+  # For each Timestamp we now identify the closest fix
+  closest <- sapply(1:nrow(dates), function(x) {
+
+    # Identify the index of the closest fix
+    index <- which.min(abs(dates$Timestamp[x] - data$Timestamp))[1]
+
+    # Check if the time difference is smaller than 30 mins
+    close <- as.numeric(abs(dates$Timestamp[x] - data$Timestamp[index]), units = "hours") <= tol
+
+    # In case the fix is close enough, return its index
+    if (close) {
+      return(index)
+    } else {
+      return(NA)
+    }
+  })
+
+  # Remove NAs
+  closest <- na.omit(closest)
+
+  # Return respective fixes
+  return(data[closest, ])
 }
