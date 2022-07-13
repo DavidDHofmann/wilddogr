@@ -83,8 +83,8 @@ p2 <- ggplot(dat_res, aes(x = x, y = y, col = as.factor(DogName))) +
   coord_equal() +
   theme_minimal() +
   scale_color_manual(values = c("orange", "cornflowerblue"), name = "DogName") +
-  ggtitle("Resampled")
-p <- ggarrange(p1, p2, common.legend = T)
+  ggtitle("Resampled (24 Hours)")
+ggarrange(p1, p2, common.legend = T)
 ```
 
 <img src="man/figures/plot.png" align="center"/>
