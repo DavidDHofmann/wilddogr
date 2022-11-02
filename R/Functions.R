@@ -434,6 +434,10 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
     resampled <- .resampleFixes(x, hours, start, tol)
     return(resampled)
   })
+
+  # Remove NA's and unnest the list
+  keep      <- sapply(dat$Data, is.data.frame)
+  dat       <- dat[keep, ]
   resampled <- unnest(dat, Data)
 
   # Return the resampled fixes
