@@ -724,5 +724,9 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
   closest <- na.omit(closest)
 
   # Return respective fixes
-  return(data[closest, ])
+  if (length(closest) > 0) {
+    return(data[closest, ])
+  } else {
+    return(NA)
+  }
 }

@@ -20,11 +20,10 @@ GPS data of wild dogs stored on Dropbox. For this, you'll need to have access to
 the "KML-Dispersers" folder.
 
 ## Installation
-
-You can install the development version of wilddogr from [GitHub](https://github.com/) with:
+To install `wilddogr` you need to have the package `devtools` installed. You can
+then install `wilddogr` using:
 
 ```r
-# install.packages("devtools")
 devtools::install_github("DavidDHofmann/wilddogr")
 ```
 
@@ -55,7 +54,7 @@ the temporal resolution of the GPS data to a specified value (e.g. 4-hours or
 ## Example
 Here is a little example of the above outlined workflow
 
-```{r, echo = T, warning = F, message = F}
+```r
 # Load required packages
 library(wilddogr)
 library(ggpubr)
@@ -100,7 +99,7 @@ p2 <- ggplot(dat_res, aes(x = x, y = y, col = as.factor(DogName))) +
   theme_minimal() +
   scale_color_manual(values = c("orange", "cornflowerblue"), name = "DogName") +
   ggtitle("Resampled (24 Hours)")
-
-# Arrange them in a single plot
 ggarrange(p1, p2, common.legend = T)
 ```
+
+<img src="man/figures/plot.png" align="center"/>
