@@ -9,14 +9,20 @@
 # library(stringr)
 # library(readxl)
 # library(tidyverse)
+# library(chron)
 
 ################################################################################
 #### Load Dependencies
 ################################################################################
+#' @import ggplot2
 #' @importFrom pbapply pbsapply
 #' @importFrom rdrop2 drop_exists drop_dir drop_download
 #' @importFrom lubridate year hours minutes ymd_hms dmy_hm with_tz
+#' @importFrom dplyr group_by summarize arrange mutate lag
 #' @importFrom readxl read_excel
+#' @importFrom chron times
+#' @importFrom tidyr nest unnest
+#' @importFrom purrr map
 NULL
 
 ################################################################################
@@ -79,7 +85,8 @@ dog_files <- function(rvc = F) {
   files <- files[grepl(files$name, pattern = ".csv$"), ]
   files <- files[grepl(files$name, pattern = "GPS"), ]
 
-  # Ignore all "performance" files and files from the "dispersers" folder
+  # Ignore all "performance" files and files from the "dispersers" folder (they
+  # are copies of files that are stored elsewhere)
   files <- files[!(grepl(files$path_lower, pattern = "performance")), ]
   files <- files[!(grepl(files$path_lower, pattern = "dispersers")), ]
 
@@ -167,7 +174,7 @@ dog_files <- function(rvc = F) {
       info$DogName
     , paste0("Collar", replace_na(info$Collar, "XXXXX"))
     , replace_na(gsub(as.character(info$Timestamp), pattern = "-|\\s|:", replacement = ""), rep("XXXXXXXXXXXXXX"))
-    , paste0("Part-", formatC(info$Counter, width = 2, format = "d", flag = "0"))
+    , formatC(info$Counter, width = 2, format = "d", flag = "0")
     , sep = "_"
   )
 
@@ -315,20 +322,35 @@ dog_download <- function(x
     dups_complete <- duplicated(dat)
     dat <- subset(dat, !dups_complete)
 
-    # Use dispersal dates to determine dispersal phases
-    # cut <- ext$DispersalPeriods
-    cut <- .dispersalDates()
+    # # Use dispersal dates to determine dispersal phases
+    # # cut <- ext$DispersalPeriods
+    # cut <- .dispersalDates()
+    #
+    # # Now loop through all dogs and use the table to specify whether a fix was
+    # # taken during dispersal or not
+    # dat$State <- "Resident"
+    # names <- unique(cut$DogName)
+    # for (i in seq_along(names)) {
+    #   cutoff <- subset(cut, DogName == names[i])
+    #   index <- which(dat$DogName == names[i])
+    #   for (h in 1:nrow(cutoff)) {
+    #     dat$State[index][dat$Timestamp[index] >= cutoff$FirstDate[h] &
+    #     dat$Timestamp[index] <= cutoff$LastDate[h]] <- "Disperser"
+    #   }
+    # }
 
-    # Now loop through all dogs and use the table to specify whether a fix was
-    # taken during dispersal or not
-    dat$State <- "Resident"
+    # Use phases dates to determine different behavioral phases
+    cut <- .phaseDates()
+
+    # Loop through the dogs and assign the different behavioural phases
+    dat$State <- NA
     names <- unique(cut$DogName)
     for (i in seq_along(names)) {
       cutoff <- subset(cut, DogName == names[i])
       index <- which(dat$DogName == names[i])
       for (h in 1:nrow(cutoff)) {
         dat$State[index][dat$Timestamp[index] >= cutoff$FirstDate[h] &
-        dat$Timestamp[index] <= cutoff$LastDate[h]] <- "Disperser"
+        dat$Timestamp[index] <= cutoff$LastDate[h]] <- cutoff$Phase[h]
       }
     }
 
@@ -413,6 +435,68 @@ dog_download_all <- function(
       , outdir    = outdir
       , printpath = printpath
     )
+
+}
+
+#' Get an overview of the downloaded GPS data
+#'
+#' Function to create plots that give an overview of each dog's behavioral
+#' phases based on the GPS data
+#' @export
+#' @param x data.frame or tibble containing GPS data
+#' @return plot of the data
+#' @examples
+#' \dontrun{
+#' # Download GPS data and create overview plot
+#' data <- dog_download_all(rvc = F)
+#'
+#' # Create overview plot
+#' dog_overview(data)
+#'}
+dog_overview <- function(x) {
+
+  # Identify start and enpoint of behavioral phases for each dog
+  phases <- x %>%
+    nest(Data = -DogName) %>%
+    mutate(Data = map(Data, function(y) {
+      y$State[is.na(y$State)] <- "Undefined"
+      y$switchstate <- lag(y$State) != y$State
+      y$switchstate[is.na(y$switchstate)] <- F
+      y$StateCounter <- cumsum(y$switchstate)
+      phases <- y %>%
+        group_by(StateCounter) %>%
+        summarize(First = min(Timestamp), Last = max(Timestamp), State = unique(State)) %>%
+        arrange(First)
+      return(phases)
+    })) %>% unnest(Data)
+
+  # Identify start and endtimes for each collar for each dog
+  collars <- x %>%
+    nest(Data = -DogName) %>%
+    mutate(Data = map(Data, function(y) {
+      collars <- y %>%
+        group_by(CollarID) %>%
+        summarize(First = min(Timestamp), Last = max(Timestamp), CollarID = unique(CollarID)) %>%
+        arrange(First) %>%
+        mutate(CollarID = as.factor(CollarID))
+      return(collars)
+    })) %>% unnest(Data)
+
+  # Determine if there has been a change of behavior
+  ggplot() +
+    geom_rect(data = phases, aes(xmin = First, xmax = Last, ymin = 0, ymax = 1, fill = State), color = NA) +
+    geom_segment(data = collars, size = 0.5, aes(x = First, xend = Last, y = 1, yend = 1, lty = CollarID), show.legend = F) +
+    geom_point(data = collars, aes(x = First, y = 1), col = "green", pch = 15, size = 2) +
+    geom_point(data = collars, aes(x = Last, y = 1), col = "red", pch = 4, size = 2) +
+    geom_density(data = x, aes(x = Timestamp, y = ..scaled..), adjust = 0.25, show.legend = F) +
+    theme_minimal() +
+    ylim(c(0, 1)) +
+    facet_wrap(~ DogName, scales = "free", ncol = 1) +
+    xlab("") +
+    ylab("") +
+    theme(axis.text.y = element_blank()) +
+    # scale_fill_brewer(palette = "Set1", alpha = 0.75)
+    scale_fill_viridis_d(alpha = 0.75)
 
 }
 
@@ -593,7 +677,7 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
 
 }
 
-# Helper to download dispersal dates
+# Helper to assign collaring dates
 .collarDates <- function() {
 
   # Download updated collar handling dates
@@ -602,11 +686,6 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
     , local_path = tempdir()
     , overwrite  = T
   )
-
-  # Do some cleaning
-  as.POSIXct(43055.375, origin = "1899-12-30")
-  test <- as.POSIXct(as.Date(43055.375, origin = "1899-12-30", tz = "UTC"))
-  with_tz(test, "UTC")
 
   # Download file and keep relevant columns
   collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
@@ -680,6 +759,50 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
   # Return the final dataframe
   return(dispersal_periods)
 
+}
+
+# Function to download and clean dates for track segmentation
+.phaseDates <- function() {
+
+  # Download phases file
+  drop_download(
+      path       = "KML-Files/Dogs_traj_segmentation.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
+
+  # Load it
+  phase_dates <- file.path(tempdir(), "Dogs_traj_segmentation.xlsx") %>%
+    {suppressMessages(read_excel(., skip = 10))}
+
+  # Do some cleaning
+  phase_dates <- phase_dates %>%
+    subset(Ind != ".." & Ind != "..." & Phase != ".." & Phase != "...") %>%
+    {suppressWarnings(
+      mutate(.
+        , Start_phase_date = as.Date(as.numeric(Start_phase_date), origin = "1899-12-30")   # Excel is stupid
+        , Start_phase_time = times(as.numeric(Start_phase_time))                            # Excel is stupid
+        , Stop_phase_date  = as.Date(as.numeric(Stop_phase_date), origin  = "1899-12-30")   # Excel is stupid
+        , Stop_phase_time  = times(as.numeric(Stop_phase_time))                             # Excel is stupid
+      )
+    )} %>%
+    {suppressWarnings(
+      mutate(.
+        , FirstDate = round_date(ymd_hms(paste(Start_phase_date, Start_phase_time)), unit = "30 min")
+        , LastDate  = round_date(ymd_hms(paste(Stop_phase_date, Stop_phase_time)), unit = "30 min")
+      )
+    )} %>%
+    select(DogName = Ind, CollarID = CollarID, Phase, FirstDate, LastDate) %>%
+    mutate(.
+      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
+      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
+    ) %>%
+    mutate(
+      LastDate = if_else(is.na(LastDate), ymd_hms(Sys.time()), LastDate)
+    )
+
+  # Return it
+  return(phase_dates)
 }
 
 # Helper function to resample fixes for a single individual
