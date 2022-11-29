@@ -9,7 +9,8 @@ dog_download_all(
   overwrite = F,
   clean = T,
   outdir = getwd(),
-  printpath = T
+  printpath = T,
+  legacy = F
 )
 }
 \arguments{

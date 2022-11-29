@@ -4,10 +4,14 @@
 \alias{dog_overview}
 \title{Get an overview of the downloaded GPS data}
 \usage{
-dog_overview(x)
+dog_overview(x, nrow = NULL, ncol = NULL)
 }
 \arguments{
 \item{x}{data.frame or tibble containing GPS data}
+
+\item{nrow}{numeric value indicating the number of desired rows}
+
+\item{ncol}{numeric value indicating the number of desired columns}
 }
 \value{
 plot of the data

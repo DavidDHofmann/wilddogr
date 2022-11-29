@@ -4,7 +4,14 @@
 \alias{dog_download}
 \title{Download GPS data from Dropbox}
 \usage{
-dog_download(x, overwrite = F, clean = F, outdir = getwd(), printpath = T)
+dog_download(
+  x,
+  overwrite = F,
+  clean = F,
+  outdir = getwd(),
+  printpath = T,
+  legacy = F
+)
 }
 \arguments{
 \item{x}{data.frame (or a subset of it) as returned from \code{dog_files()}

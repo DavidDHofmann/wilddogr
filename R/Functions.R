@@ -17,8 +17,8 @@
 #' @import ggplot2
 #' @importFrom pbapply pbsapply
 #' @importFrom rdrop2 drop_exists drop_dir drop_download
-#' @importFrom lubridate year hours minutes ymd_hms dmy_hm with_tz
-#' @importFrom dplyr group_by summarize arrange mutate lag
+#' @importFrom lubridate year hours minutes ymd_hms dmy_hm with_tz round_date
+#' @importFrom dplyr group_by summarize arrange mutate lag select
 #' @importFrom readxl read_excel
 #' @importFrom chron times
 #' @importFrom tidyr nest unnest
@@ -233,7 +233,12 @@ dog_download <- function(x
     , clean     = F
     , outdir    = getwd()
     , printpath = T
+    , legacy    = F
   ) {
+
+  # Testing
+  # x <- dog_files(rvc = F)
+  # x <- x[1, ]
 
   # Make sure a dataframe is provided
   if (missing(x)) {
@@ -324,7 +329,7 @@ dog_download <- function(x
 
     # # Use dispersal dates to determine dispersal phases
     # # cut <- ext$DispersalPeriods
-    # cut <- .dispersalDates()
+    # cut <- dispersalDates()
     #
     # # Now loop through all dogs and use the table to specify whether a fix was
     # # taken during dispersal or not
@@ -340,10 +345,19 @@ dog_download <- function(x
     # }
 
     # Use phases dates to determine different behavioral phases
-    cut <- .phaseDates()
+    if (legacy) {
+        cut <- dispersalDates()
+        cut$Phase <- "Disperser"
+      } else {
+        cut <- phaseDates()
+    }
 
     # Loop through the dogs and assign the different behavioural phases
-    dat$State <- NA
+    if (legacy) {
+        dat$State <- "Resident"
+      } else {
+        dat$State <- NA
+    }
     names <- unique(cut$DogName)
     for (i in seq_along(names)) {
       cutoff <- subset(cut, DogName == names[i])
@@ -356,7 +370,7 @@ dog_download <- function(x
 
     # Use collar dates to remove data before/after collaring
     # cut <- ext$CollarPeriods
-    cut <- .collarDates()
+    cut <- collarDates()
 
     # Create a column that indicates if the respective fix lies within the first
     # and last date. Note, for some individuals we're missing these dates, so
@@ -423,6 +437,7 @@ dog_download_all <- function(
     , clean     = T
     , outdir    = getwd()
     , printpath = T
+    , legacy    = F
   ) {
 
     # Identify all files
@@ -434,6 +449,7 @@ dog_download_all <- function(
       , clean     = clean
       , outdir    = outdir
       , printpath = printpath
+      , legacy    = legacy
     )
 
 }
@@ -444,6 +460,8 @@ dog_download_all <- function(
 #' phases based on the GPS data
 #' @export
 #' @param x data.frame or tibble containing GPS data
+#' @param nrow numeric value indicating the number of desired rows
+#' @param ncol numeric value indicating the number of desired columns
 #' @return plot of the data
 #' @examples
 #' \dontrun{
@@ -453,7 +471,14 @@ dog_download_all <- function(
 #' # Create overview plot
 #' dog_overview(data)
 #'}
-dog_overview <- function(x) {
+dog_overview <- function(x, nrow = NULL, ncol = NULL) {
+
+  # # Testing
+  # x <- dog_files(rvc = F)
+  # x <- subset(x, DogName == "Aramis")
+  # x <- dog_download(x, overwrite = T, outdir = tempdir(), clean = T)
+  # dat <- read_csv(x)
+  # x <- dat
 
   # Identify start and enpoint of behavioral phases for each dog
   phases <- x %>%
@@ -488,15 +513,19 @@ dog_overview <- function(x) {
     geom_segment(data = collars, size = 0.5, aes(x = First, xend = Last, y = 1, yend = 1, lty = CollarID), show.legend = F) +
     geom_point(data = collars, aes(x = First, y = 1), col = "green", pch = 15, size = 2) +
     geom_point(data = collars, aes(x = Last, y = 1), col = "red", pch = 4, size = 2) +
-    geom_density(data = x, aes(x = Timestamp, y = ..scaled..), adjust = 0.25, show.legend = F) +
+    geom_density(data = x, aes(x = Timestamp, y = after_stat(ndensity)), adjust = 0.25, show.legend = F) +
     theme_minimal() +
     ylim(c(0, 1)) +
-    facet_wrap(~ DogName, scales = "free", ncol = 1) +
+    facet_wrap(~ DogName, scales = "free", ncol = ncol, nrow = nrow) +
     xlab("") +
     ylab("") +
-    theme(axis.text.y = element_blank()) +
     # scale_fill_brewer(palette = "Set1", alpha = 0.75)
-    scale_fill_viridis_d(alpha = 0.75)
+    scale_fill_viridis_d(alpha = 0.75) +
+    scale_x_datetime(date_labels = "%b %Y") +
+    theme(
+        axis.text.x = element_text(size = 5)
+      , axis.text.y = element_blank()
+    )
 
 }
 
@@ -526,6 +555,176 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
 
   # Return the resampled fixes
   return(resampled)
+}
+
+#' Function to download and show the collar dates for each individual
+#'
+#' This function is used to download and show the file that contains the
+#' dates at which collars were deployed and when they stopped working
+#' @export
+#' @return data.frame Data frame containing the collar dates
+#' @examples
+#' # Check collar dates
+#' collarDates()
+collarDates <- function() {
+
+  # Download updated collar handling dates
+  drop_download(
+      path       = "KML-Files/Collar Settings.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
+
+  # Download file and keep relevant columns
+  collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
+    read_excel(skip = 1) %>%
+    subset(!is.na(`Collar Nr.`) & !is.na(`Dog Name`)) %>%
+    dplyr::select(
+        CollarID  = `Collar Nr.`
+      , DogName   = `Dog Name`
+      , DogCode   = `Dog Code`
+      , Sex       = `Sex`
+      , FirstDate = `Collaring.Date.Text`
+      , LastDate1 = `Stop.Recording.Date.Text`
+      , LastDate2 = `Last fix date`
+    )
+
+  # Some dates are not parsed correctly, let's do so now
+  collar_periods$LastDate2 <- lapply(collar_periods$LastDate2, function(x) {
+    x <- collar_periods$LastDate2[17]
+    if (is.na(x)) {
+        timestamp <- NA
+      } else if (is.na(suppressWarnings(as.numeric(x)))) {
+        timestamp <- paste0(x, ":00")
+        timestamp <- lubridate::dmy_hms(x, tz = "UTC")
+      } else {
+        timestamp <- as.Date(as.numeric(x), origin = "1899-12-30", tz = "UTC")
+        timestamp <- as.POSIXct(timestamp)
+        timestamp <- with_tz(timestamp, "UTC")
+    }
+    return(as.POSIXct(timestamp, tz = "UTC"))
+  }) %>% do.call(c, .)
+
+  # Convert local times to UTC
+  collar_periods <- collar_periods %>%
+    mutate(
+        FirstDate = ymd_hms(FirstDate) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+      , LastDate1 = ymd_hms(LastDate1) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+      , LastDate2 = LastDate2 - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
+    ) %>%
+    mutate(LastDate = pmax(LastDate1, LastDate2, na.rm = T)) %>%
+    dplyr::select(-c(LastDate1, LastDate2)) %>%
+    arrange(CollarID, DogName)
+
+  # Return the final dataframe
+  return(collar_periods)
+}
+
+#' Function to download and show the segmentation dates for the different
+#' behavioral phases
+#'
+#' This function is used to download and show the file that contains the
+#' segmentation dates that are used to classify the GPS data into different
+#' behavioral phases / states
+#' @export
+#' @return data.frame Data frame containing the segmentation dates
+#' @examples
+#' # Check segmentation dates
+#' phaseDates()
+phaseDates <- function() {
+
+  # Download phases file
+  drop_download(
+      path       = "KML-Files/Dogs_traj_segmentation.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
+
+  # Load it
+  phase_dates <- file.path(tempdir(), "Dogs_traj_segmentation.xlsx") %>%
+    {suppressMessages(read_excel(., skip = 10))}
+
+  # Do some cleaning
+  phase_dates <- phase_dates %>%
+    subset(Ind != ".." & Ind != "..." & Phase != ".." & Phase != "...") %>%
+    {suppressWarnings(
+      mutate(.
+        , Start_phase_date = as.Date(as.numeric(Start_phase_date), origin = "1899-12-30")   # Excel is stupid
+        , Start_phase_time = times(as.numeric(Start_phase_time))                            # Excel is stupid
+        , Stop_phase_date  = as.Date(as.numeric(Stop_phase_date), origin  = "1899-12-30")   # Excel is stupid
+        , Stop_phase_time  = times(as.numeric(Stop_phase_time))                             # Excel is stupid
+      )
+    )} %>%
+    {suppressWarnings(
+      mutate(.
+        , FirstDate = round_date(ymd_hms(paste(Start_phase_date, Start_phase_time)), unit = "30 min")
+        , LastDate  = round_date(ymd_hms(paste(Stop_phase_date, Stop_phase_time)), unit = "30 min")
+      )
+    )} %>%
+    select(DogName = Ind, CollarID = CollarID, Phase, FirstDate, LastDate) %>%
+    mutate(.
+      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
+      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
+    ) %>%
+    mutate(
+      LastDate = if_else(is.na(LastDate), ymd_hms(Sys.time()), LastDate)
+    ) %>%
+    mutate(
+      Phase = case_when(
+          Phase == "Res" ~ "Resident"
+        , Phase == "Trans" ~ "Disperser"
+        , Phase == "Disp" ~ "Disperser"
+        , Phase == "StopOver" ~ "StopOver"
+        , Phase == "Setl" ~ "Settlement"
+        , Phase == "Expl" ~ "Explorer"
+        , TRUE ~ Phase
+      )
+    )
+
+  # Return it
+  return(phase_dates)
+}
+
+#' (OLD!!!) Function to download and show the segmentation dates for the
+#' different behavioral phases
+#'
+#' This function is used to download and show the file that contains the
+#' segmentation dates that are used to classify the GPS data into residents vs.
+#' dispersers
+#' @export
+#' @return data.frame Data frame containing the segmentation dates
+#' @examples
+#' # Check segmentation dates
+#' dispersalDates()
+# Helper to download collar handling dates
+dispersalDates <- function() {
+
+  # Download updated cutoff dates
+  drop_download(
+      path       = "KML-Files/DISPERSERS/overview dispersal dates.xlsx"
+    , local_path = tempdir()
+    , overwrite  = T
+  )
+
+  # Do some cleaning
+  dispersal_periods <- file.path(tempdir(), "overview dispersal dates.xlsx") %>%
+    read_excel() %>%
+    subset(!is.na(CollarID) & !is.na(DogName)) %>%
+    dplyr::select(
+        CollarID
+      , DogName
+      , FirstDate = StartDate_UTC
+      , LastDate  = EndDate_UTC
+      , DispersalNo
+    ) %>%
+    mutate(
+        FirstDate = ymd_hms(FirstDate)
+      , LastDate  = ymd_hms(LastDate)
+    )
+
+  # Return the final dataframe
+  return(dispersal_periods)
+
 }
 
 ################################################################################
@@ -675,134 +874,6 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
   # Return the filepath
   return(x)
 
-}
-
-# Helper to assign collaring dates
-.collarDates <- function() {
-
-  # Download updated collar handling dates
-  drop_download(
-      path       = "KML-Files/Collar Settings.xlsx"
-    , local_path = tempdir()
-    , overwrite  = T
-  )
-
-  # Download file and keep relevant columns
-  collar_periods <- file.path(tempdir(), "Collar Settings.xlsx") %>%
-    read_excel(skip = 1) %>%
-    subset(!is.na(`Collar Nr.`) & !is.na(`Dog Name`)) %>%
-    dplyr::select(
-        CollarID  = `Collar Nr.`
-      , DogName   = `Dog Name`
-      , DogCode   = `Dog Code`
-      , Sex       = `Sex`
-      , FirstDate = `Collaring.Date.Text`
-      , LastDate1 = `Stop.Recording.Date.Text`
-      , LastDate2 = `Last fix date`
-    )
-
-  # Some dates are not parsed correctly, let's do so now
-  collar_periods$LastDate2 <- lapply(collar_periods$LastDate2, function(x) {
-    if (is.na(x)) {
-        timestamp <- NA
-      } else if (is.na(suppressWarnings(as.numeric(x)))) {
-        timestamp <- lubridate::dmy_hm(x, tz = "UTC")
-      } else {
-        timestamp <- as.Date(as.numeric(x), origin = "1899-12-30", tz = "UTC")
-        timestamp <- as.POSIXct(timestamp)
-        timestamp <- with_tz(timestamp, "UTC")
-    }
-    return(as.POSIXct(timestamp, tz = "UTC"))
-  }) %>% do.call(c, .)
-
-  # Convert local times to UTC
-  collar_periods <- collar_periods %>%
-    mutate(
-        FirstDate = ymd_hms(FirstDate) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
-      , LastDate1 = ymd_hms(LastDate1) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
-      , LastDate2 = LastDate2 - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
-    ) %>%
-    mutate(LastDate = pmax(LastDate1, LastDate2, na.rm = T)) %>%
-    dplyr::select(-c(LastDate1, LastDate2)) %>%
-    arrange(CollarID, DogName)
-
-  # Return the final dataframe
-  return(collar_periods)
-}
-
-# Helper to download collar handling dates
-.dispersalDates <- function() {
-
-  # Download updated cutoff dates
-  drop_download(
-      path       = "KML-Files/DISPERSERS/overview dispersal dates.xlsx"
-    , local_path = tempdir()
-    , overwrite  = T
-  )
-
-  # Do some cleaning
-  dispersal_periods <- file.path(tempdir(), "overview dispersal dates.xlsx") %>%
-    read_excel() %>%
-    subset(!is.na(CollarID) & !is.na(DogName)) %>%
-    dplyr::select(
-        CollarID
-      , DogName
-      , FirstDate = StartDate_UTC
-      , LastDate  = EndDate_UTC
-      , DispersalNo
-    ) %>%
-    mutate(
-        FirstDate = ymd_hms(FirstDate)
-      , LastDate  = ymd_hms(LastDate)
-    )
-
-  # Return the final dataframe
-  return(dispersal_periods)
-
-}
-
-# Function to download and clean dates for track segmentation
-.phaseDates <- function() {
-
-  # Download phases file
-  drop_download(
-      path       = "KML-Files/Dogs_traj_segmentation.xlsx"
-    , local_path = tempdir()
-    , overwrite  = T
-  )
-
-  # Load it
-  phase_dates <- file.path(tempdir(), "Dogs_traj_segmentation.xlsx") %>%
-    {suppressMessages(read_excel(., skip = 10))}
-
-  # Do some cleaning
-  phase_dates <- phase_dates %>%
-    subset(Ind != ".." & Ind != "..." & Phase != ".." & Phase != "...") %>%
-    {suppressWarnings(
-      mutate(.
-        , Start_phase_date = as.Date(as.numeric(Start_phase_date), origin = "1899-12-30")   # Excel is stupid
-        , Start_phase_time = times(as.numeric(Start_phase_time))                            # Excel is stupid
-        , Stop_phase_date  = as.Date(as.numeric(Stop_phase_date), origin  = "1899-12-30")   # Excel is stupid
-        , Stop_phase_time  = times(as.numeric(Stop_phase_time))                             # Excel is stupid
-      )
-    )} %>%
-    {suppressWarnings(
-      mutate(.
-        , FirstDate = round_date(ymd_hms(paste(Start_phase_date, Start_phase_time)), unit = "30 min")
-        , LastDate  = round_date(ymd_hms(paste(Stop_phase_date, Stop_phase_time)), unit = "30 min")
-      )
-    )} %>%
-    select(DogName = Ind, CollarID = CollarID, Phase, FirstDate, LastDate) %>%
-    mutate(.
-      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
-      , Phase = gsub(Phase, pattern = "Set$", replacement = "Setl")
-    ) %>%
-    mutate(
-      LastDate = if_else(is.na(LastDate), ymd_hms(Sys.time()), LastDate)
-    )
-
-  # Return it
-  return(phase_dates)
 }
 
 # Helper function to resample fixes for a single individual
