@@ -249,7 +249,8 @@ dog_download <- function(x
   # from the list
   if (!overwrite & clean) {
     if (file.exists(file.path(outdir, "Cleaned_GPSData.csv"))) {
-      return(warning("Cleaned file already exists."))
+      warning("Cleaned file already exists.")
+      return(file.exists(file.path(outdir, "Cleaned_GPSData.csv")))
     }
   }
   if (!overwrite) {
