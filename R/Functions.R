@@ -1,6 +1,6 @@
-# # ################################################################################
-# # #### TESTING
-# # ################################################################################
+# ################################################################################
+# #### TESTING
+# ################################################################################
 # library(rdrop2)
 # library(pbapply)
 # library(lubridate)
@@ -10,6 +10,8 @@
 # library(readxl)
 # library(tidyverse)
 # library(chron)
+# library(parsedate)
+# library(openxlsx)
 
 ################################################################################
 #### Load Dependencies
@@ -23,6 +25,8 @@
 #' @importFrom chron times
 #' @importFrom tidyr nest unnest
 #' @importFrom purrr map
+#' @importFrom parsedate parse_date
+#' @importFrom openxlsx convertToDateTime
 NULL
 
 ################################################################################
@@ -236,9 +240,12 @@ dog_download <- function(x
     , legacy    = F
   ) {
 
-  # Testing
+  # setwd("/home/david/Schreibtisch")
   # x <- dog_files(rvc = F)
-  # x <- x[1, ]
+  # x <- subset(x, DogName == "Aspen" & Collar == "22506")
+  # overwrite <- T
+  # clean <- T
+  # legacy <- F
 
   # Make sure a dataframe is provided
   if (missing(x)) {
@@ -558,6 +565,7 @@ resampleFixes <- function(data, hours, start, tol = 0.5) {
   return(resampled)
 }
 
+
 #' Function to download and show the collar dates for each individual
 #'
 #' This function is used to download and show the file that contains the
@@ -591,22 +599,28 @@ collarDates <- function() {
     )
 
   # Some dates are not parsed correctly, let's do so now
-  collar_periods$LastDate2 <- lapply(collar_periods$LastDate2, function(x) {
-    x <- collar_periods$LastDate2[17]
-    if (is.na(x)) {
-        timestamp <- NA
-      } else if (is.na(suppressWarnings(as.numeric(x)))) {
-        timestamp <- paste0(x, ":00")
-        timestamp <- lubridate::dmy_hms(x, tz = "UTC")
-      } else {
-        timestamp <- as.Date(as.numeric(x), origin = "1899-12-30", tz = "UTC")
-        timestamp <- as.POSIXct(timestamp)
-        timestamp <- with_tz(timestamp, "UTC")
-    }
-    return(as.POSIXct(timestamp, tz = "UTC"))
-  }) %>% do.call(c, .)
+  collar_periods <- collar_periods %>%
+    mutate(
+        FirstDate = .parseDate(FirstDate) # Excel is stupid
+      , LastDate1 = .parseDate(LastDate1) # Excel is stupid
+      , LastDate2 = .parseDate(LastDate2) # Excel is stupid
+    )
 
-  # Convert local times to UTC
+  # collar_periods$LastDate2 <- lapply(collar_periods$LastDate2, function(x) {
+  #   if (is.na(x)) {
+  #       timestamp <- NA
+  #     } else if (is.na(suppressWarnings(as.numeric(x)))) {
+  #       timestamp <- paste0(x, ":00")
+  #       timestamp <- lubridate::dmy_hms(x, tz = "UTC")
+  #     } else {
+  #       timestamp <- as.Date(as.numeric(x), origin = "1899-12-30", tz = "UTC")
+  #       timestamp <- as.POSIXct(timestamp)
+  #       timestamp <- with_tz(timestamp, "UTC")
+  #   }
+  #   return(as.POSIXct(timestamp, tz = "UTC"))
+  # }) %>% do.call(c, .)
+
+  # Convert local times to UTC (think about this again!!!)
   collar_periods <- collar_periods %>%
     mutate(
         FirstDate = ymd_hms(FirstDate) - hours(2) + minutes(5) # Subtract 2 hours to get utc time, add 5 mins for tolerance
@@ -731,8 +745,27 @@ dispersalDates <- function() {
 ################################################################################
 #### Level 2 Functions
 ################################################################################
+# Custom function to parse a vector of dates in various formats
+# x <- c("21.07.2018 10:00", "2021-11-02 09:15", "43055.38", NA)
+.parseDate <- function(x) {
+  parsed_dates <- lapply(x, function(z) {
+    z_numeric <- suppressWarnings(as.numeric(z))
+    parsed <- parsedate::parse_date(z, approx = F)
+    if (is.na(parsed) & !is.na(z_numeric)) {
+      parsed <- convertToDateTime(z_numeric, tz = "UTC")
+      parsed <- with_tz(parsed, "UTC")
+    }
+    return(parsed)
+  })
+  parsed_dates <- do.call(c, parsed_dates)
+  return(parsed_dates)
+}
+
 # Helper to clean files
 .dogClean <- function(x) {
+
+  # Testing
+  # x <- tmpfles
 
   # Extract information from filenames
   info <- basename(x)
